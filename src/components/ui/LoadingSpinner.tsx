@@ -73,21 +73,25 @@ export function LoadingPage() {
 // Skeleton loader for cards
 export function ConfessionCardSkeleton() {
     return (
-        <div className="bg-white rounded-2xl p-6 shadow-sm animate-pulse">
-            <div className="flex items-start gap-4">
-                <div className="w-10 h-10 bg-blush rounded-full" />
-                <div className="flex-1 space-y-3">
-                    <div className="h-4 bg-blush rounded w-1/4" />
-                    <div className="space-y-2">
-                        <div className="h-3 bg-blush rounded w-full" />
-                        <div className="h-3 bg-blush rounded w-3/4" />
-                        <div className="h-3 bg-blush rounded w-1/2" />
-                    </div>
+        <div className="bg-white rounded-[2rem] p-8 border-2 border-blush/50 shadow-sm animate-pulse">
+            <div className="space-y-4">
+                <div className="h-6 bg-blush rounded-xl w-3/4" />
+                <div className="space-y-2">
+                    <div className="h-4 bg-blush/70 rounded-lg w-full" />
+                    <div className="h-4 bg-blush/70 rounded-lg w-full" />
+                    <div className="h-4 bg-blush/70 rounded-lg w-2/3" />
                 </div>
             </div>
-            <div className="flex items-center gap-4 mt-4 pt-4 border-t border-blush">
-                <div className="h-8 w-16 bg-blush rounded" />
-                <div className="h-8 w-16 bg-blush rounded" />
+
+            {/* Optional Image Placeholder */}
+            <div className="mt-6 aspect-square bg-blush/30 rounded-2xl w-full" />
+
+            <div className="flex items-center justify-between mt-8 pt-6 border-t border-blush/30">
+                <div className="h-4 w-24 bg-blush/50 rounded-full" />
+                <div className="flex gap-2">
+                    <div className="h-10 w-16 bg-blush/50 rounded-full" />
+                    <div className="h-10 w-10 bg-blush/50 rounded-full" />
+                </div>
             </div>
         </div>
     )

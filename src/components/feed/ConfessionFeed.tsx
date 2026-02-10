@@ -195,9 +195,11 @@ export default function ConfessionFeed() {
 
             {/* Feed */}
             {isLoading ? (
-                <div className="space-y-4">
-                    {[...Array(3)].map((_, i) => (
-                        <ConfessionCardSkeleton key={i} />
+                <div className="columns-1 md:columns-2 lg:columns-3 gap-6">
+                    {[...Array(6)].map((_, i) => (
+                        <div key={i} className="break-inside-avoid mb-6">
+                            <ConfessionCardSkeleton />
+                        </div>
                     ))}
                 </div>
             ) : confessions.length === 0 ? (
@@ -215,38 +217,38 @@ export default function ConfessionFeed() {
                     </p>
                 </motion.div>
             ) : (
-                <motion.div className="space-y-4">
+                <div className="columns-1 md:columns-2 lg:columns-3 gap-6">
                     <AnimatePresence mode="popLayout">
                         {confessions.map((confession, index) => (
-                            <ConfessionCard
-                                key={confession.id}
-                                confession={confession}
-                                index={index}
-                                onVote={handleVote}
-                                onReport={setReportingId}
-                                isAuthenticated={!!user}
-                            />
+                            <div key={confession.id} className="break-inside-avoid mb-6">
+                                <ConfessionCard
+                                    confession={confession}
+                                    index={index}
+                                    onVote={handleVote}
+                                    onReport={setReportingId}
+                                    isAuthenticated={!!user}
+                                />
+                            </div>
                         ))}
                     </AnimatePresence>
 
                     {/* Loading more indicator */}
                     {isLoadingMore && (
-                        <div className="space-y-4">
+                        <div className="break-inside-avoid mb-6">
                             <ConfessionCardSkeleton />
                         </div>
                     )}
+                </div>
+            )}
 
-                    {/* End of feed */}
-                    {!hasMore && confessions.length > 0 && (
-                        <motion.p
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            className="text-center text-text-secondary py-8"
-                        >
-                            You've reached the end! 💕
-                        </motion.p>
-                    )}
-                </motion.div>
+            {!isLoading && !hasMore && confessions.length > 0 && (
+                <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-center text-text-secondary py-8 w-full"
+                >
+                    You've reached the end! 💕
+                </motion.p>
             )}
 
             {/* Report Modal */}

@@ -98,61 +98,53 @@ export default function ConfessionCard({
             animate="visible"
             whileHover="hover"
             className={`
-        relative overflow-hidden rounded-2xl p-6
-        ${colorVariant.bg} ${colorVariant.border}
-        border shadow-sm
-      `}
+                relative overflow-hidden rounded-[2rem] p-8
+                ${colorVariant.bg} ${colorVariant.border}
+                border-2 shadow-sm flex flex-col h-full
+                transition-all duration-300
+            `}
         >
-            {/* Content */}
-            <div className="prose prose-rose max-w-none text-text-primary leading-relaxed">
-                {renderContent()}
-            </div>
+            {/* Content Container */}
+            <div className="flex-1">
+                {/* Content */}
+                <div className="prose prose-rose max-w-none text-text-primary leading-relaxed text-lg font-medium break-words w-full">
+                    {renderContent()}
+                </div>
 
-            {/* Image */}
-            {confession.image_url && (
-                <div className="mt-4 relative rounded-xl overflow-hidden bg-blush aspect-[4/5] w-full">
-                    {/* Loading and Fallback UI */}
-                    {(isImageLoading || true) && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-100/50">
-                            {true ? (
-                                <>
-                                    {/* <CircleAlert className="w-8 h-8 text-rose-300" /> */}
-                                    <p className="text-xs mt-2 text-rose-400">Failed to load image</p>
-                                </>
-                            ) : (
-                                <ImageIcon className="w-8 h-8 text-rose-light animate-pulse" />
-                            )}
-                        </div>
-                    )}
+                {/* Image */}
+                {confession.image_url && (
+                    <div className="mt-6 relative rounded-2xl overflow-hidden bg-white/40 ring-1 ring-black/5 aspect-square w-full">
+                        {/* Loading and Fallback UI */}
+                        {isImageLoading && (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-rose-light/10">
+                                <ImageIcon className="w-10 h-10 text-rose-primary/20 animate-pulse" />
+                            </div>
+                        )}
 
-                    {/* The Image */}
-                    {true && (
+                        {/* The Image */}
                         <Image
                             src={confession.image_url}
                             alt="Confession image"
-                            fill // Fills the 4:5 container
-                            className={`object-cover transition-opacity duration-300 ${isImageLoading ? 'opacity-0' : 'opacity-100'
+                            fill
+                            className={`object-cover transition-all duration-500 hover:scale-105 ${isImageLoading ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
                                 }`}
                             onLoad={() => setIsImageLoading(false)}
-                            onError={() => {
-                                setIsImageLoading(false);
-
-                            }}
+                            onError={() => setIsImageLoading(false)}
                         />
-                    )}
-                </div>
-            )}
+                    </div>
+                )}
+            </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-between mt-4 pt-4 border-t border-black/5">
+            <div className="flex items-center justify-between mt-8 pt-6 border-t border-black/5">
                 {/* Left: Time */}
-                <div className="flex items-center gap-1.5 text-sm text-text-secondary">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-text-secondary/60">
                     <Clock className="w-4 h-4" />
                     <span>{timeAgo}</span>
                 </div>
 
                 {/* Right: Actions */}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                     <UpvoteButton
                         count={confession.upvote_count}
                         hasVoted={confession.user_has_voted || false}
@@ -163,8 +155,8 @@ export default function ConfessionCard({
                     {isAuthenticated && (
                         <motion.button
                             onClick={() => onReport(confession.id)}
-                            className="p-2 rounded-full text-text-secondary hover:text-rose-dark hover:bg-rose-light/20 transition-colors"
-                            whileHover={{ scale: 1.1 }}
+                            className="p-2.5 rounded-full text-text-secondary hover:text-rose-primary hover:bg-rose-primary/10 transition-colors bg-black/5"
+                            whileHover={{ scale: 1.1, rotate: 5 }}
                             whileTap={{ scale: 0.9 }}
                             title="Report"
                         >
@@ -174,8 +166,9 @@ export default function ConfessionCard({
                 </div>
             </div>
 
-            {/* Decorative gradient */}
-            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-rose-light/10 to-transparent pointer-events-none" />
+            {/* Decorative Elements */}
+            <div className="absolute -top-12 -right-12 w-24 h-24 bg-gradient-to-br from-white/40 to-transparent rounded-full blur-2xl pointer-events-none" />
+            <div className="absolute -bottom-8 -left-8 w-16 h-16 bg-gradient-to-tr from-rose-light/20 to-transparent rounded-full blur-xl pointer-events-none" />
         </motion.article>
     )
 }
