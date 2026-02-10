@@ -1,26 +1,184 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  /* Primary Rose Colors */
+  --color-rose-primary: #E11D48;
+  --color-rose-light: #FDA4AF;
+  --color-rose-dark: #9F1239;
+
+  /* Neutral Backdrop */
+  --color-cream: #FFF1F2;
+  --color-blush: #FFE4E6;
+
+  /* Card Colors */
+  --color-card-rose: #FFF1F2;
+  --color-card-lavender: #F5F3FF;
+  --color-card-peach: #FFF7ED;
+  --color-card-mint: #F0FDF4;
+  --color-card-sky: #F0F9FF;
+
+  /* Text */
+  --color-text-primary: #1F2937;
+  --color-text-secondary: #6B7280;
+
+  /* Font Families */
+  --font-heading: 'Space Grotesk', sans-serif;
+  --font-body: 'Space Grotesk', sans-serif;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Base styles */
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-body);
+  background-color: var(--color-cream);
+  color: var(--color-text-primary);
+  min-height: 100vh;
+}
+
+/* Prose customization for confessions */
+.prose {
+  max-width: none;
+}
+
+.prose p {
+  margin-bottom: 0.5rem;
+}
+
+.prose p:last-child {
+  margin-bottom: 0;
+}
+
+.prose strong {
+  font-weight: 600;
+}
+
+/* Tiptap editor styles */
+.ProseMirror {
+  outline: none;
+  min-height: 150px;
+}
+
+.ProseMirror p {
+  margin: 0.5rem 0;
+}
+
+.ProseMirror p:first-child {
+  margin-top: 0;
+}
+
+.ProseMirror p:last-child {
+  margin-bottom: 0;
+}
+
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--color-text-secondary);
+  pointer-events: none;
+  height: 0;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-blush);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-rose-light);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-rose-primary);
+}
+
+/* Selection color */
+::selection {
+  background-color: var(--color-rose-light);
+  color: var(--color-rose-dark);
+}
+
+/* Focus ring */
+*:focus-visible {
+  outline: 2px solid var(--color-rose-primary);
+  outline-offset: 2px;
+}
+
+/* Button focus override */
+button:focus-visible {
+  outline: 2px solid var(--color-rose-primary);
+  outline-offset: 2px;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+/* Card hover glow */
+.card-glow {
+  transition: box-shadow 0.3s ease;
+}
+
+.card-glow:hover {
+  box-shadow: 0 10px 40px rgba(225, 29, 72, 0.15);
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, var(--color-rose-primary) 0%, var(--color-rose-dark) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Hearts floating animation background */
+.hearts-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.hearts-bg::before {
+  content: '💕💗💖💝💘';
+  position: absolute;
+  font-size: 24px;
+  opacity: 0.1;
+  animation: floatHearts 20s linear infinite;
+}
+
+@keyframes floatHearts {
+  0% {
+    transform: translateY(100vh) rotate(0deg);
+  }
+
+  100% {
+    transform: translateY(-100vh) rotate(360deg);
+  }
 }
