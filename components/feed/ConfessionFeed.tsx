@@ -18,6 +18,7 @@ type FeedMode = 'featured' | 'latest'
 const PAGE_SIZE = 12
 
 export default function ConfessionFeed() {
+    const [mounted, setMounted] = useState(false)
     const [confessions, setConfessions] = useState<ConfessionWithProfile[]>([])
     const [mode, setMode] = useState<FeedMode>('featured')
     const [isLoading, setIsLoading] = useState(true)
@@ -30,16 +31,19 @@ export default function ConfessionFeed() {
     const { toast } = useToast()
     const supabase = createClient()
     
-    // CRITICAL: Refs to prevent race conditions and infinite loops
     const countRef = useRef(0)
-    const isFetchingRef = useRef(false) // The "Lock"
+    const isFetchingRef = useRef(false)
     countRef.current = confessions.length
 
+    // 1. Prevent Hydration Mismatch: Only render content once mounted on client
+    useEffect(() => {
+        setMounted(true)
+    }, [])
+
     const fetchConfessions = useCallback(async (reset = false) => {
-        // Prevent duplicate calls
-        if (isFetchingRef.current) return;
+        if (isFetchingRef.current) return
         
-        isFetchingRef.current = true;
+        isFetchingRef.current = true
         if (reset) setIsLoading(true)
         else setIsLoadingMore(true)
 
@@ -83,16 +87,15 @@ export default function ConfessionFeed() {
         } finally {
             setIsLoading(false)
             setIsLoadingMore(false)
-            // Release the lock after a small delay to let DOM settle
-            setTimeout(() => { isFetchingRef.current = false }, 100);
+            setTimeout(() => { isFetchingRef.current = false }, 200)
         }
     }, [supabase, user, mode, toast])
 
+    // Initial Load
     useEffect(() => {
-        fetchConfessions(true)
-    }, [mode, user?.id, fetchConfessions])
+        if (mounted) fetchConfessions(true)
+    }, [mounted, mode, user?.id, fetchConfessions])
 
-    // Fix for the Bento Class logic to prevent "number" errors
     const getBentoClass = (index: number, content: any) => {
         const contentStr = typeof content === 'string' ? content : JSON.stringify(content || '')
         if (index % 7 === 0) return 'md:col-span-2 md:row-span-2' 
@@ -133,17 +136,22 @@ export default function ConfessionFeed() {
 
     useEffect(() => {
         const handleScroll = () => {
-            // Check state AND the lock ref
-            if (isLoading || isLoadingMore || !hasMore || isFetchingRef.current) return
-            
-            const threshold = document.documentElement.offsetHeight - 1200 // Increased trigger distance
+            if (!mounted || isLoading || isLoadingMore || !hasMore || isFetchingRef.current) return
+            const threshold = document.documentElement.offsetHeight - 1200
             if (window.innerHeight + window.scrollY >= threshold) {
                 fetchConfessions(false)
             }
         }
         window.addEventListener('scroll', handleScroll, { passive: true })
         return () => window.removeEventListener('scroll', handleScroll)
-    }, [fetchConfessions, isLoading, isLoadingMore, hasMore])
+    }, [mounted, fetchConfessions, isLoading, isLoadingMore, hasMore])
+
+    // 2. Return a simple skeleton if not mounted to prevent refresh-stuck behavior
+    if (!mounted) return (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 auto-rows-[250px]">
+            {[...Array(8)].map((_, i) => <ConfessionCardSkeleton key={i} />)}
+        </div>
+    )
 
     return (
         <div className="space-y-8 pb-20">
@@ -196,12 +204,7 @@ export default function ConfessionFeed() {
                             </motion.div>
                         ))}
                     </AnimatePresence>
-                    
-                    {isLoadingMore && (
-                        <div className="col-span-full flex justify-center py-12">
-                            <Loader2 className="animate-spin text-rose-primary w-8 h-8" />
-                        </div>
-                    )}
+                    {isLoadingMore && <div className="col-span-full flex justify-center py-12"><Loader2 className="animate-spin text-rose-primary w-8 h-8" /></div>}
                 </div>
             )}
 
