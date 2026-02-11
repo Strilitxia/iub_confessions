@@ -29,21 +29,17 @@ export default function ConfessionFeed() {
     const { user } = useAuth()
     const { toast } = useToast()
     const supabase = createClient()
+    
+    // CRITICAL: Refs to prevent race conditions and infinite loops
     const countRef = useRef(0)
+    const isFetchingRef = useRef(false) // The "Lock"
     countRef.current = confessions.length
 
-    // FIX 1: Update function to handle JSON/Any type for content
-    const getBentoClass = (index: number, content: any) => {
-        // Convert JSON content to string length safely for the logic
-        const contentStr = typeof content === 'string' ? content : JSON.stringify(content || '')
-        
-        if (index % 7 === 0) return 'md:col-span-2 md:row-span-2' 
-        if (contentStr.length > 400) return 'md:row-span-2' 
-        if (index % 4 === 0) return 'md:col-span-2' 
-        return 'md:col-span-1 md:row-span-1'
-    }
-
     const fetchConfessions = useCallback(async (reset = false) => {
+        // Prevent duplicate calls
+        if (isFetchingRef.current) return;
+        
+        isFetchingRef.current = true;
         if (reset) setIsLoading(true)
         else setIsLoadingMore(true)
 
@@ -87,12 +83,23 @@ export default function ConfessionFeed() {
         } finally {
             setIsLoading(false)
             setIsLoadingMore(false)
+            // Release the lock after a small delay to let DOM settle
+            setTimeout(() => { isFetchingRef.current = false }, 100);
         }
     }, [supabase, user, mode, toast])
 
     useEffect(() => {
         fetchConfessions(true)
     }, [mode, user?.id, fetchConfessions])
+
+    // Fix for the Bento Class logic to prevent "number" errors
+    const getBentoClass = (index: number, content: any) => {
+        const contentStr = typeof content === 'string' ? content : JSON.stringify(content || '')
+        if (index % 7 === 0) return 'md:col-span-2 md:row-span-2' 
+        if (contentStr.length > 400) return 'md:row-span-2' 
+        if (index % 4 === 0) return 'md:col-span-2' 
+        return 'md:col-span-1 md:row-span-1'
+    }
 
     const handleVote = async (confessionId: string) => {
         if (!user) return router.push('/login')
@@ -109,7 +116,6 @@ export default function ConfessionFeed() {
         try {
             if (isAdding) {
                 await supabase.from('votes').insert({ user_id: user.id, confession_id: confessionId })
-                // FIX 2: Cast as any to bypass the 'never' type error in build
                 await (supabase.rpc as any)('increment_vote', { row_id: confessionId })
             } else {
                 await supabase.from('votes').delete().eq('user_id', user.id).eq('confession_id', confessionId)
@@ -127,8 +133,10 @@ export default function ConfessionFeed() {
 
     useEffect(() => {
         const handleScroll = () => {
-            if (isLoading || isLoadingMore || !hasMore) return
-            const threshold = document.documentElement.offsetHeight - 900
+            // Check state AND the lock ref
+            if (isLoading || isLoadingMore || !hasMore || isFetchingRef.current) return
+            
+            const threshold = document.documentElement.offsetHeight - 1200 // Increased trigger distance
             if (window.innerHeight + window.scrollY >= threshold) {
                 fetchConfessions(false)
             }
@@ -146,7 +154,7 @@ export default function ConfessionFeed() {
                     </div>
                     <div>
                         <h2 className="font-heading text-2xl font-bold text-text-primary">Confession Board</h2>
-                        <p className="text-sm text-text-secondary">Read what IUB is whispering about</p>
+                        <p className="text-sm text-text-secondary">Anonymous whispers from IUB</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2 self-end md:self-auto">
@@ -158,7 +166,7 @@ export default function ConfessionFeed() {
             </div>
 
             {isLoading ? (
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 auto-rows-[200px]">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 auto-rows-[250px]">
                     {[...Array(8)].map((_, i) => (
                         <div key={i} className={i === 0 ? 'md:col-span-2 md:row-span-2' : ''}>
                             <ConfessionCardSkeleton />
@@ -172,10 +180,9 @@ export default function ConfessionFeed() {
                             <motion.div 
                                 layout
                                 key={confession.id} 
-                                initial={{ opacity: 0, y: 20 }} 
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: index * 0.05 }}
-                                // FIX 3: Removed logic and null coalescing from here to keep it clean
+                                initial={{ opacity: 0, scale: 0.9 }} 
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ duration: 0.2 }}
                                 className={getBentoClass(index, confession.content)}
                             >
                                 <ConfessionCard
@@ -189,13 +196,17 @@ export default function ConfessionFeed() {
                             </motion.div>
                         ))}
                     </AnimatePresence>
-                    {isLoadingMore && <div className="col-span-full flex justify-center py-12"><Loader2 className="animate-spin text-rose-primary w-8 h-8" /></div>}
+                    
+                    {isLoadingMore && (
+                        <div className="col-span-full flex justify-center py-12">
+                            <Loader2 className="animate-spin text-rose-primary w-8 h-8" />
+                        </div>
+                    )}
                 </div>
             )}
 
             {!hasMore && confessions.length > 0 && (
-                <div className="text-center py-16 border-t border-dashed border-rose-light/30">
-                    <Heart className="w-8 h-8 text-rose-light mx-auto mb-2 opacity-50" />
+                <div className="text-center py-16 opacity-60">
                     <p className="text-text-secondary font-medium italic">You've reached the end of the whispers...</p>
                 </div>
             )}
