@@ -27,7 +27,9 @@ export default function ConfessionFeed() {
     const [reportingId, setReportingId] = useState<string | null>(null)
 
     const router = useRouter()
-    const { user } = useAuth()
+    // 1. Added loading state from AuthProvider (if your hook provides it)
+    // If not, we'll use a session check inside the fetch
+    const { user, loading: authLoading } = useAuth() 
     const { toast } = useToast()
     const supabase = createClient()
     
@@ -35,12 +37,12 @@ export default function ConfessionFeed() {
     const isFetchingRef = useRef(false)
     countRef.current = confessions.length
 
-    // 1. Prevent Hydration Mismatch: Only render content once mounted on client
     useEffect(() => {
         setMounted(true)
     }, [])
 
     const fetchConfessions = useCallback(async (reset = false) => {
+        // LOCK: If already fetching, abort to prevent infinite loop
         if (isFetchingRef.current) return
         
         isFetchingRef.current = true
@@ -59,7 +61,8 @@ export default function ConfessionFeed() {
             if (error) throw error
             let processedData = data as ConfessionWithProfile[]
 
-            if (user && processedData.length > 0) {
+            // 2. Critical Fix: Check if user exists *and* session is stable
+            if (user?.id && processedData.length > 0) {
                 const { data: votes } = await supabase
                     .from('votes')
                     .select('confession_id')
@@ -83,18 +86,23 @@ export default function ConfessionFeed() {
 
             setHasMore(data.length === PAGE_SIZE)
         } catch (error: any) {
-            toast(error.message || 'Failed to load', 'error')
+            console.error("Fetch error:", error)
+            toast('Failed to load whispers', 'error')
         } finally {
             setIsLoading(false)
             setIsLoadingMore(false)
-            setTimeout(() => { isFetchingRef.current = false }, 200)
+            // Small timeout to allow Bento layout to settle
+            setTimeout(() => { isFetchingRef.current = false }, 300)
         }
-    }, [supabase, user, mode, toast])
+    }, [supabase, user?.id, mode, toast])
 
-    // Initial Load
+    // Initial Load & Auth Change Observer
     useEffect(() => {
-        if (mounted) fetchConfessions(true)
-    }, [mounted, mode, user?.id, fetchConfessions])
+        // 3. Don't fetch if Auth is still determining if user is logged in
+        if (mounted && !authLoading) {
+            fetchConfessions(true)
+        }
+    }, [mounted, authLoading, mode, user?.id, fetchConfessions])
 
     const getBentoClass = (index: number, content: any) => {
         const contentStr = typeof content === 'string' ? content : JSON.stringify(content || '')
@@ -137,7 +145,7 @@ export default function ConfessionFeed() {
     useEffect(() => {
         const handleScroll = () => {
             if (!mounted || isLoading || isLoadingMore || !hasMore || isFetchingRef.current) return
-            const threshold = document.documentElement.offsetHeight - 1200
+            const threshold = document.documentElement.offsetHeight - 1400 // Trigger earlier for Bento
             if (window.innerHeight + window.scrollY >= threshold) {
                 fetchConfessions(false)
             }
@@ -146,12 +154,7 @@ export default function ConfessionFeed() {
         return () => window.removeEventListener('scroll', handleScroll)
     }, [mounted, fetchConfessions, isLoading, isLoadingMore, hasMore])
 
-    // 2. Return a simple skeleton if not mounted to prevent refresh-stuck behavior
-    if (!mounted) return (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 auto-rows-[250px]">
-            {[...Array(8)].map((_, i) => <ConfessionCardSkeleton key={i} />)}
-        </div>
-    )
+    if (!mounted) return <div className="grid grid-cols-1 md:grid-cols-4 gap-4 auto-rows-[250px]">{[...Array(8)].map((_, i) => <ConfessionCardSkeleton key={i} />)}</div>
 
     return (
         <div className="space-y-8 pb-20">
@@ -162,7 +165,7 @@ export default function ConfessionFeed() {
                     </div>
                     <div>
                         <h2 className="font-heading text-2xl font-bold text-text-primary">Confession Board</h2>
-                        <p className="text-sm text-text-secondary">Anonymous whispers from IUB</p>
+                        <p className="text-sm text-text-secondary">Whispers from the IUB halls</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2 self-end md:self-auto">
@@ -188,9 +191,9 @@ export default function ConfessionFeed() {
                             <motion.div 
                                 layout
                                 key={confession.id} 
-                                initial={{ opacity: 0, scale: 0.9 }} 
+                                initial={{ opacity: 0, scale: 0.95 }} 
                                 animate={{ opacity: 1, scale: 1 }}
-                                transition={{ duration: 0.2 }}
+                                transition={{ duration: 0.25 }}
                                 className={getBentoClass(index, confession.content)}
                             >
                                 <ConfessionCard
@@ -204,13 +207,14 @@ export default function ConfessionFeed() {
                             </motion.div>
                         ))}
                     </AnimatePresence>
-                    {isLoadingMore && <div className="col-span-full flex justify-center py-12"><Loader2 className="animate-spin text-rose-primary w-8 h-8" /></div>}
+                    {isLoadingMore && <div className="col-span-full flex justify-center py-12"><Loader2 className="animate-spin text-rose-primary w-10 h-10" /></div>}
                 </div>
             )}
 
             {!hasMore && confessions.length > 0 && (
-                <div className="text-center py-16 opacity-60">
-                    <p className="text-text-secondary font-medium italic">You've reached the end of the whispers...</p>
+                <div className="text-center py-20 border-t border-dashed border-rose-light/30">
+                    <Heart className="w-8 h-8 text-rose-light mx-auto mb-2 opacity-30" />
+                    <p className="text-text-secondary font-medium italic">That's the end of the whispers...</p>
                 </div>
             )}
 
