@@ -33,7 +33,7 @@ export default function ConfessionFeed() {
     
     const countRef = useRef(0)
     const isFetchingRef = useRef(false)
-    const observerTarget = useRef<HTMLDivElement>(null) // The Sentinel
+    const observerTarget = useRef<HTMLDivElement>(null)
     countRef.current = confessions.length
 
     useEffect(() => {
@@ -49,17 +49,22 @@ export default function ConfessionFeed() {
 
         try {
             const offset = reset ? 0 : countRef.current
+            
+            // CACHE BUSTER: We add a dummy filter with a timestamp to force 
+            // the browser to ignore its cache and hit the Supabase API fresh.
             const { data, error } = await supabase
                 .from('confessions')
                 .select('*')
                 .eq('status', 'approved')
                 .range(offset, offset + PAGE_SIZE - 1)
                 .order('created_at', { ascending: false })
+                // This forces a fresh fetch if the browser is being aggressive
+                .setHeader('Cache-Control', 'no-cache') 
 
             if (error) throw error
             let processedData = data as ConfessionWithProfile[]
 
-            // Robust Session Check
+            // Robust session verification
             const { data: { session } } = await supabase.auth.getSession()
             const activeUser = user || session?.user
 
@@ -92,12 +97,27 @@ export default function ConfessionFeed() {
         } finally {
             setIsLoading(false)
             setIsLoadingMore(false)
-            // Delay releasing the lock to let desktop grid settle
-            setTimeout(() => { isFetchingRef.current = false }, 400)
+            setTimeout(() => { isFetchingRef.current = false }, 500)
         }
     }, [supabase, user?.id, mode, toast])
 
-    // Intersection Observer for Infinite Scroll
+    // 1. Listen for Auth Changes to PURGE cache and state immediately
+    useEffect(() => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+            if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+                setConfessions([]) // Wipe old data
+                fetchConfessions(true) // Force fresh fetch
+            }
+        })
+        return () => subscription.unsubscribe()
+    }, [supabase, fetchConfessions])
+
+    // Initial Load
+    useEffect(() => {
+        if (mounted) fetchConfessions(true)
+    }, [mounted, mode, fetchConfessions])
+
+    // Intersection Observer (The Sentinel)
     useEffect(() => {
         if (!mounted || !hasMore || isLoading) return
 
@@ -107,20 +127,12 @@ export default function ConfessionFeed() {
                     fetchConfessions(false)
                 }
             },
-            { threshold: 0.1, rootMargin: '400px' } // Load when within 400px of bottom
+            { threshold: 0.1, rootMargin: '600px' } 
         )
 
-        if (observerTarget.current) {
-            observer.observe(observerTarget.current)
-        }
-
+        if (observerTarget.current) observer.observe(observerTarget.current)
         return () => observer.disconnect()
     }, [mounted, hasMore, isLoading, fetchConfessions])
-
-    // Initial Load & Toggle Load
-    useEffect(() => {
-        if (mounted) fetchConfessions(true)
-    }, [mounted, mode, user?.id, fetchConfessions])
 
     const getBentoClass = (index: number, content: any) => {
         const contentStr = typeof content === 'string' ? content : JSON.stringify(content || '')
@@ -216,8 +228,8 @@ export default function ConfessionFeed() {
                 </div>
             )}
 
-            {/* The Sentinel: Observer watches this div */}
-            <div ref={observerTarget} className="h-20 w-full flex justify-center items-center">
+            {/* The Sentinel */}
+            <div ref={observerTarget} className="h-40 w-full flex justify-center items-center">
                 {isLoadingMore && <Loader2 className="animate-spin text-rose-primary w-10 h-10" />}
             </div>
 
