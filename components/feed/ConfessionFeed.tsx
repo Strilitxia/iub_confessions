@@ -27,9 +27,11 @@ export default function ConfessionFeed() {
     const [reportingId, setReportingId] = useState<string | null>(null)
 
     const router = useRouter()
-    // 1. Added loading state from AuthProvider (if your hook provides it)
-    // If not, we'll use a session check inside the fetch
-    const { user, loading: authLoading } = useAuth() 
+    
+    // FIX: Destructure user only (removing the 'loading' that caused the build error)
+    const auth = useAuth()
+    const user = auth?.user
+    
     const { toast } = useToast()
     const supabase = createClient()
     
@@ -42,7 +44,6 @@ export default function ConfessionFeed() {
     }, [])
 
     const fetchConfessions = useCallback(async (reset = false) => {
-        // LOCK: If already fetching, abort to prevent infinite loop
         if (isFetchingRef.current) return
         
         isFetchingRef.current = true
@@ -61,12 +62,15 @@ export default function ConfessionFeed() {
             if (error) throw error
             let processedData = data as ConfessionWithProfile[]
 
-            // 2. Critical Fix: Check if user exists *and* session is stable
-            if (user?.id && processedData.length > 0) {
+            // Check for user session directly from supabase if the context is unreliable
+            const { data: { session } } = await supabase.auth.getSession()
+            const activeUser = user || session?.user
+
+            if (activeUser?.id && processedData.length > 0) {
                 const { data: votes } = await supabase
                     .from('votes')
                     .select('confession_id')
-                    .eq('user_id', user.id)
+                    .eq('user_id', activeUser.id)
                     .in('confession_id', processedData.map(c => c.id))
 
                 const votedIds = new Set(votes?.map(v => v.confession_id) || [])
@@ -91,18 +95,15 @@ export default function ConfessionFeed() {
         } finally {
             setIsLoading(false)
             setIsLoadingMore(false)
-            // Small timeout to allow Bento layout to settle
             setTimeout(() => { isFetchingRef.current = false }, 300)
         }
     }, [supabase, user?.id, mode, toast])
 
-    // Initial Load & Auth Change Observer
     useEffect(() => {
-        // 3. Don't fetch if Auth is still determining if user is logged in
-        if (mounted && !authLoading) {
+        if (mounted) {
             fetchConfessions(true)
         }
-    }, [mounted, authLoading, mode, user?.id, fetchConfessions])
+    }, [mounted, mode, user?.id, fetchConfessions])
 
     const getBentoClass = (index: number, content: any) => {
         const contentStr = typeof content === 'string' ? content : JSON.stringify(content || '')
@@ -145,7 +146,7 @@ export default function ConfessionFeed() {
     useEffect(() => {
         const handleScroll = () => {
             if (!mounted || isLoading || isLoadingMore || !hasMore || isFetchingRef.current) return
-            const threshold = document.documentElement.offsetHeight - 1400 // Trigger earlier for Bento
+            const threshold = document.documentElement.offsetHeight - 1400 
             if (window.innerHeight + window.scrollY >= threshold) {
                 fetchConfessions(false)
             }
