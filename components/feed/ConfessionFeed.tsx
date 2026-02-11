@@ -15,7 +15,7 @@ import { createClient } from '@/lib/supabase/client'
 import { sortByFeatured } from '@/lib/utils/algorithms'
 
 type FeedMode = 'featured' | 'latest'
-const PAGE_SIZE = 12 // Using a multiple of 2, 3, and 4 for cleaner grid layouts
+const PAGE_SIZE = 12
 
 export default function ConfessionFeed() {
     const [confessions, setConfessions] = useState<ConfessionWithProfile[]>([])
@@ -30,27 +30,24 @@ export default function ConfessionFeed() {
     const { toast } = useToast()
     const supabase = createClient()
     
-    // Use a ref to track current length for fetching without triggering re-renders
-    const confessionsCount = useRef(0)
-    confessionsCount.current = confessions.length
+    // Track count in a ref to avoid infinite dependency loops
+    const countRef = useRef(0)
+    countRef.current = confessions.length
 
     const fetchConfessions = useCallback(async (reset = false) => {
         if (reset) setIsLoading(true)
         else setIsLoadingMore(true)
 
         try {
-            const offset = reset ? 0 : confessionsCount.current
-
-            let query = supabase
+            const offset = reset ? 0 : countRef.current
+            const { data, error } = await supabase
                 .from('confessions')
                 .select('*')
                 .eq('status', 'approved')
                 .range(offset, offset + PAGE_SIZE - 1)
                 .order('created_at', { ascending: false })
 
-            const { data, error } = await query
             if (error) throw error
-
             let processedData = data as ConfessionWithProfile[]
 
             if (user && processedData.length > 0) {
@@ -67,25 +64,21 @@ export default function ConfessionFeed() {
                 }))
             }
 
-            if (mode === 'featured') {
-                processedData = sortByFeatured(processedData)
-            }
+            if (mode === 'featured') processedData = sortByFeatured(processedData)
 
             setConfessions(prev => {
                 if (reset) return processedData
-                const filtered = processedData.filter(n => !prev.some(p => p.id === n.id))
-                return [...prev, ...filtered]
+                const existingIds = new Set(prev.map(p => p.id))
+                return [...prev, ...processedData.filter(n => !existingIds.has(n.id))]
             })
 
             setHasMore(data.length === PAGE_SIZE)
-        } catch (error) {
-            console.error('Fetch error:', error)
-            toast('Failed to load confessions', 'error')
+        } catch (error: any) {
+            toast(error.message || 'Failed to load', 'error')
         } finally {
             setIsLoading(false)
             setIsLoadingMore(false)
         }
-        // Removed confessions.length from dependencies to stop the loop
     }, [supabase, user, mode, toast])
 
     useEffect(() => {
@@ -98,28 +91,29 @@ export default function ConfessionFeed() {
         const confession = confessions.find(c => c.id === confessionId)
         if (!confession) return
 
-        const isAddingVote = !confession.user_has_voted
+        const isAdding = !confession.user_has_voted
 
-        // Optimistic Update
+        // Optimistic UI Update
         setConfessions(prev => prev.map(c => 
             c.id === confessionId 
-            ? { ...c, user_has_voted: isAddingVote, upvote_count: c.upvote_count + (isAddingVote ? 1 : -1) }
+            ? { ...c, user_has_voted: isAdding, upvote_count: c.upvote_count + (isAdding ? 1 : -1) }
             : c
         ))
 
         try {
-            if (isAddingVote) {
+            if (isAdding) {
                 await supabase.from('votes').insert({ user_id: user.id, confession_id: confessionId })
-                await supabase.rpc('increment_vote', { row_id: confessionId }) // Better than manual update
+                // FIX: Cast as any to bypass "never" type error on custom RPCs
+                await (supabase.rpc as any)('increment_vote', { row_id: confessionId })
             } else {
                 await supabase.from('votes').delete().eq('user_id', user.id).eq('confession_id', confessionId)
-                await supabase.rpc('decrement_vote', { row_id: confessionId })
+                await (supabase.rpc as any)('decrement_vote', { row_id: confessionId })
             }
         } catch (error) {
-            // Revert on error
+            // Revert state on failure
             setConfessions(prev => prev.map(c => 
                 c.id === confessionId 
-                ? { ...c, user_has_voted: !isAddingVote, upvote_count: c.upvote_count + (!isAddingVote ? 1 : -1) }
+                ? { ...c, user_has_voted: !isAdding, upvote_count: c.upvote_count + (isAdding ? -1 : 1) }
                 : c
             ))
             toast('Vote failed', 'error')
@@ -129,29 +123,25 @@ export default function ConfessionFeed() {
     useEffect(() => {
         const handleScroll = () => {
             if (isLoading || isLoadingMore || !hasMore) return
-            
-            const scrolledToBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 800
-            if (scrolledToBottom) {
+            const threshold = document.documentElement.offsetHeight - 900
+            if (window.innerHeight + window.scrollY >= threshold) {
                 fetchConfessions(false)
             }
         }
-
         window.addEventListener('scroll', handleScroll, { passive: true })
         return () => window.removeEventListener('scroll', handleScroll)
     }, [fetchConfessions, isLoading, isLoadingMore, hasMore])
 
     return (
-        <div className="md:space-y-6 space-y-4">
+        <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <Heart className="w-6 h-6 text-rose-primary fill-rose-light" />
-                    <h2 className="font-heading text-xl md:text-2xl font-semibold text-text-primary">
-                        Confessions
-                    </h2>
+                    <h2 className="font-heading text-xl md:text-2xl font-semibold text-text-primary">Confessions</h2>
                 </div>
                 <div className="flex items-center gap-2">
                     <FeedToggle mode={mode} onChange={setMode} />
-                    <button onClick={() => fetchConfessions(true)} className="p-2 hover:bg-rose-light/10 rounded-full transition-colors">
+                    <button onClick={() => fetchConfessions(true)} className="p-2 hover:bg-rose-light/10 rounded-full">
                         <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
                     </button>
                 </div>
@@ -162,49 +152,27 @@ export default function ConfessionFeed() {
                     {[...Array(6)].map((_, i) => <ConfessionCardSkeleton key={i} />)}
                 </div>
             ) : (
-                <>
-                    {/* Replaced 'columns' with 'grid' for significant performance boost */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                        <AnimatePresence mode="popLayout">
-                            {confessions.map((confession, index) => (
-                                <motion.div 
-                                    layout
-                                    initial={{ opacity: 0, scale: 0.9 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    exit={{ opacity: 0, scale: 0.9 }}
-                                    key={confession.id}
-                                >
-                                    <ConfessionCard
-                                        confession={confession}
-                                        index={index}
-                                        onVote={handleVote}
-                                        onReport={setReportingId}
-                                        isAuthenticated={!!user}
-                                    />
-                                </motion.div>
-                            ))}
-                        </AnimatePresence>
-                    </div>
-
-                    {isLoadingMore && (
-                        <div className="flex justify-center py-10">
-                            <Loader2 className="w-8 h-8 animate-spin text-rose-primary" />
-                        </div>
-                    )}
-
-                    {!hasMore && confessions.length > 0 && (
-                        <p className="text-center text-text-secondary py-10 font-medium">
-                            That's all for now! 💕
-                        </p>
-                    )}
-                </>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    <AnimatePresence mode="popLayout">
+                        {confessions.map((confession, index) => (
+                            <motion.div layout key={confession.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                                <ConfessionCard
+                                    confession={confession}
+                                    index={index}
+                                    onVote={handleVote}
+                                    onReport={setReportingId}
+                                    isAuthenticated={!!user}
+                                />
+                            </motion.div>
+                        ))}
+                    </AnimatePresence>
+                    {isLoadingMore && <div className="col-span-full flex justify-center py-10"><Loader2 className="animate-spin text-rose-primary" /></div>}
+                </div>
             )}
 
-            <ReportModal
-                isOpen={!!reportingId}
-                onClose={() => setReportingId(null)}
-                confessionId={reportingId || ''}
-            />
+            {!hasMore && confessions.length > 0 && <p className="text-center text-text-secondary py-10 font-medium">You've reached the end! 💕</p>}
+
+            <ReportModal isOpen={!!reportingId} onClose={() => setReportingId(null)} confessionId={reportingId || ''} />
         </div>
     )
 }
