@@ -33,7 +33,7 @@ export default function ConfessionFeed() {
     
     const countRef = useRef(0)
     const isFetchingRef = useRef(false)
-    const initialLoadDone = useRef(false) // Desktop-specific safety lock
+    const observerTarget = useRef<HTMLDivElement>(null) // The Sentinel
     countRef.current = confessions.length
 
     useEffect(() => {
@@ -44,12 +44,8 @@ export default function ConfessionFeed() {
         if (isFetchingRef.current) return
         
         isFetchingRef.current = true
-        if (reset) {
-            setIsLoading(true)
-            initialLoadDone.current = false
-        } else {
-            setIsLoadingMore(true)
-        }
+        if (reset) setIsLoading(true)
+        else setIsLoadingMore(true)
 
         try {
             const offset = reset ? 0 : countRef.current
@@ -63,7 +59,7 @@ export default function ConfessionFeed() {
             if (error) throw error
             let processedData = data as ConfessionWithProfile[]
 
-            // Check session directly for login stability
+            // Robust Session Check
             const { data: { session } } = await supabase.auth.getSession()
             const activeUser = user || session?.user
 
@@ -96,14 +92,32 @@ export default function ConfessionFeed() {
         } finally {
             setIsLoading(false)
             setIsLoadingMore(false)
-            // Allow more time for desktop re-flow
-            setTimeout(() => { 
-                isFetchingRef.current = false 
-                initialLoadDone.current = true
-            }, 500)
+            // Delay releasing the lock to let desktop grid settle
+            setTimeout(() => { isFetchingRef.current = false }, 400)
         }
     }, [supabase, user?.id, mode, toast])
 
+    // Intersection Observer for Infinite Scroll
+    useEffect(() => {
+        if (!mounted || !hasMore || isLoading) return
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && !isFetchingRef.current) {
+                    fetchConfessions(false)
+                }
+            },
+            { threshold: 0.1, rootMargin: '400px' } // Load when within 400px of bottom
+        )
+
+        if (observerTarget.current) {
+            observer.observe(observerTarget.current)
+        }
+
+        return () => observer.disconnect()
+    }, [mounted, hasMore, isLoading, fetchConfessions])
+
+    // Initial Load & Toggle Load
     useEffect(() => {
         if (mounted) fetchConfessions(true)
     }, [mounted, mode, user?.id, fetchConfessions])
@@ -146,21 +160,6 @@ export default function ConfessionFeed() {
         }
     }
 
-    useEffect(() => {
-        const handleScroll = () => {
-            // Safety: Don't trigger if not mounted, already loading, no more data, 
-            // the lock is on, OR the initial desktop render isn't fully settled
-            if (!mounted || isLoading || isLoadingMore || !hasMore || isFetchingRef.current || !initialLoadDone.current) return
-            
-            const threshold = document.documentElement.offsetHeight - 1200
-            if (window.innerHeight + window.scrollY >= threshold) {
-                fetchConfessions(false)
-            }
-        }
-        window.addEventListener('scroll', handleScroll, { passive: true })
-        return () => window.removeEventListener('scroll', handleScroll)
-    }, [mounted, fetchConfessions, isLoading, isLoadingMore, hasMore])
-
     if (!mounted) return <div className="grid grid-cols-1 md:grid-cols-4 gap-4 auto-rows-[250px]">{[...Array(8)].map((_, i) => <ConfessionCardSkeleton key={i} />)}</div>
 
     return (
@@ -172,7 +171,7 @@ export default function ConfessionFeed() {
                     </div>
                     <div>
                         <h2 className="font-heading text-2xl font-bold text-text-primary">Confession Board</h2>
-                        <p className="text-sm text-text-secondary">Whispers from the IUB halls</p>
+                        <p className="text-sm text-text-secondary">Anonymous whispers from IUB</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2 self-end md:self-auto">
@@ -214,13 +213,16 @@ export default function ConfessionFeed() {
                             </motion.div>
                         ))}
                     </AnimatePresence>
-                    {isLoadingMore && <div className="col-span-full flex justify-center py-12"><Loader2 className="animate-spin text-rose-primary w-10 h-10" /></div>}
                 </div>
             )}
 
+            {/* The Sentinel: Observer watches this div */}
+            <div ref={observerTarget} className="h-20 w-full flex justify-center items-center">
+                {isLoadingMore && <Loader2 className="animate-spin text-rose-primary w-10 h-10" />}
+            </div>
+
             {!hasMore && confessions.length > 0 && (
-                <div className="text-center py-20 border-t border-dashed border-rose-light/30">
-                    <Heart className="w-8 h-8 text-rose-light mx-auto mb-2 opacity-30" />
+                <div className="text-center py-10 border-t border-dashed border-rose-light/30">
                     <p className="text-text-secondary font-medium italic">That's the end of the whispers...</p>
                 </div>
             )}
