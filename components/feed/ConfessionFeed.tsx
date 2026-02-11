@@ -27,16 +27,13 @@ export default function ConfessionFeed() {
     const [reportingId, setReportingId] = useState<string | null>(null)
 
     const router = useRouter()
-    
-    // FIX: Destructure user only (removing the 'loading' that caused the build error)
-    const auth = useAuth()
-    const user = auth?.user
-    
+    const { user } = useAuth()
     const { toast } = useToast()
     const supabase = createClient()
     
     const countRef = useRef(0)
     const isFetchingRef = useRef(false)
+    const initialLoadDone = useRef(false) // Desktop-specific safety lock
     countRef.current = confessions.length
 
     useEffect(() => {
@@ -47,8 +44,12 @@ export default function ConfessionFeed() {
         if (isFetchingRef.current) return
         
         isFetchingRef.current = true
-        if (reset) setIsLoading(true)
-        else setIsLoadingMore(true)
+        if (reset) {
+            setIsLoading(true)
+            initialLoadDone.current = false
+        } else {
+            setIsLoadingMore(true)
+        }
 
         try {
             const offset = reset ? 0 : countRef.current
@@ -62,7 +63,7 @@ export default function ConfessionFeed() {
             if (error) throw error
             let processedData = data as ConfessionWithProfile[]
 
-            // Check for user session directly from supabase if the context is unreliable
+            // Check session directly for login stability
             const { data: { session } } = await supabase.auth.getSession()
             const activeUser = user || session?.user
 
@@ -95,14 +96,16 @@ export default function ConfessionFeed() {
         } finally {
             setIsLoading(false)
             setIsLoadingMore(false)
-            setTimeout(() => { isFetchingRef.current = false }, 300)
+            // Allow more time for desktop re-flow
+            setTimeout(() => { 
+                isFetchingRef.current = false 
+                initialLoadDone.current = true
+            }, 500)
         }
     }, [supabase, user?.id, mode, toast])
 
     useEffect(() => {
-        if (mounted) {
-            fetchConfessions(true)
-        }
+        if (mounted) fetchConfessions(true)
     }, [mounted, mode, user?.id, fetchConfessions])
 
     const getBentoClass = (index: number, content: any) => {
@@ -145,8 +148,11 @@ export default function ConfessionFeed() {
 
     useEffect(() => {
         const handleScroll = () => {
-            if (!mounted || isLoading || isLoadingMore || !hasMore || isFetchingRef.current) return
-            const threshold = document.documentElement.offsetHeight - 1400 
+            // Safety: Don't trigger if not mounted, already loading, no more data, 
+            // the lock is on, OR the initial desktop render isn't fully settled
+            if (!mounted || isLoading || isLoadingMore || !hasMore || isFetchingRef.current || !initialLoadDone.current) return
+            
+            const threshold = document.documentElement.offsetHeight - 1200
             if (window.innerHeight + window.scrollY >= threshold) {
                 fetchConfessions(false)
             }
@@ -181,7 +187,7 @@ export default function ConfessionFeed() {
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 auto-rows-[250px]">
                     {[...Array(8)].map((_, i) => (
                         <div key={i} className={i === 0 ? 'md:col-span-2 md:row-span-2' : ''}>
-                            <ConfessionCardSkeleton />
+                            <ConfessionCardSkeleton key={i} />
                         </div>
                     ))}
                 </div>
