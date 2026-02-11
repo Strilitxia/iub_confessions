@@ -1,7 +1,7 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { Flag, Clock, Image as ImageIcon } from 'lucide-react'
+import { Flag, Clock, Image as ImageIcon, AlertCircle } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { ConfessionWithProfile } from '@/types/database'
 import { getCardColor } from '@/lib/utils/colors'
@@ -15,6 +15,7 @@ interface ConfessionCardProps {
     onVote: (confessionId: string) => Promise<void>
     onReport: (confessionId: string) => void
     isAuthenticated: boolean
+    className?: string // Added for Bento spanning
 }
 
 const cardVariants = {
@@ -41,21 +42,20 @@ export default function ConfessionCard({
     index,
     onVote,
     onReport,
-    isAuthenticated
+    isAuthenticated,
+    className = ""
 }: ConfessionCardProps) {
     const [isImageLoading, setIsImageLoading] = useState(true)
+    const [imageError, setImageError] = useState(false)
     const colorVariant = getCardColor(confession.color_variant)
 
-    // Parse Tiptap content
     const renderContent = () => {
         if (!confession.content) return null
-
         try {
             const content = typeof confession.content === 'string'
                 ? JSON.parse(confession.content)
                 : confession.content
 
-            // Simple Tiptap content renderer
             return content.content?.map((node: any, i: number) => {
                 if (node.type === 'paragraph') {
                     const text = node.content?.map((child: any) => {
@@ -70,22 +70,14 @@ export default function ConfessionCard({
                         return text
                     }).join('') || ''
 
-                    const alignClass = node.attrs?.textAlign
-                        ? `text-${node.attrs.textAlign}`
-                        : ''
-
+                    const alignClass = node.attrs?.textAlign ? `text-${node.attrs.textAlign}` : ''
                     return (
-                        <p
-                            key={i}
-                            className={`mb-2 last:mb-0 ${alignClass}`}
-                            dangerouslySetInnerHTML={{ __html: text }}
-                        />
+                        <p key={i} className={`mb-2 last:mb-0 ${alignClass}`} dangerouslySetInnerHTML={{ __html: text }} />
                     )
                 }
                 return null
             })
         } catch {
-            // Fallback for plain text
             return <p>{String(confession.content)}</p>
         }
     }
@@ -99,83 +91,77 @@ export default function ConfessionCard({
             animate="visible"
             whileHover="hover"
             className={`
-        relative overflow-hidden rounded-2xl p-6 border-3 mb-4 break-inside-avoid
-        ${colorVariant.bg} ${colorVariant.border}
-        border shadow-sm
-      `}
+                relative overflow-hidden rounded-3xl p-6 border-2 
+                flex flex-col h-full transition-all duration-300
+                ${colorVariant.bg} ${colorVariant.border}
+                ${className}
+            `}
         >
-            {/* Content */}
-            <div className="prose prose-rose leading-relaxed break-words">
-                {renderContent()}
+            {/* Header / Content Area (Grows to push footer down) */}
+            <div className="flex-grow">
+                <div className="prose prose-rose prose-sm md:prose-base leading-relaxed break-words max-w-none">
+                    {renderContent()}
+                </div>
+
+                {/* Image Section */}
+                {confession.image_url && (
+                    <div className="mt-4 relative rounded-2xl overflow-hidden aspect-video w-full bg-black/5">
+                        {isImageLoading && !imageError && (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <ImageIcon className="w-6 h-6 text-rose-300 animate-pulse" />
+                            </div>
+                        )}
+                        
+                        {imageError ? (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-rose-50/50">
+                                <AlertCircle className="w-6 h-6 text-rose-300" />
+                                <p className="text-[10px] mt-1 text-rose-400 font-medium">Image unavailable</p>
+                            </div>
+                        ) : (
+                            <Image
+                                src={confession.image_url}
+                                alt="Confession"
+                                fill
+                                className={`object-cover transition-opacity duration-500 ${isImageLoading ? 'opacity-0' : 'opacity-100'}`}
+                                onLoad={() => setIsImageLoading(false)}
+                                onError={() => {
+                                    setIsImageLoading(false)
+                                    setImageError(true)
+                                }}
+                            />
+                        )}
+                    </div>
+                )}
             </div>
 
-            {/* Image */}
-            {confession.image_url && (
-                <div className="mt-4 relative rounded-xl overflow-hidden aspect-square w-full">
-                    {/* Loading and Fallback UI */}
-                    {(isImageLoading || true) && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center ">
-                            {true ? (
-                                <>
-                                    {/* <CircleAlert className="w-8 h-8 text-rose-300" /> */}
-                                    <p className="text-xs mt-2 text-rose-400">Failed to load image</p>
-                                </>
-                            ) : (
-                                <ImageIcon className="w-8 h-8 text-rose-light animate-pulse" />
-                            )}
-                        </div>
-                    )}
-
-                    {/* The Image */}
-                    {true && (
-                        <Image
-                            src={confession.image_url}
-                            alt="Confession image"
-                            fill // Fills the 1:1 container
-                            className={`object-contain transition-opacity duration-300 ${isImageLoading ? 'opacity-0' : 'opacity-100'
-                                }`}
-                            onLoad={() => setIsImageLoading(false)}
-                            onError={() => {
-                                setIsImageLoading(false);
-                            }}
-                        />
-                    )}
-                </div>
-            )}
-
-
-            {/* Footer */}
-            <div className="flex items-center justify-between mt-4 pt-4 border-t border-black/5">
-                {/* Left: Time */}
-                <div className="flex items-center gap-1.5 text-sm text-text-secondary">
-                    <Clock className="w-4 h-4" />
+            {/* Footer - Stays at bottom */}
+            <div className="flex items-center justify-between mt-6 pt-4 border-t border-black/5">
+                <div className="flex items-center gap-1.5 text-[12px] font-medium text-text-secondary">
+                    <Clock className="w-3.5 h-3.5" />
                     <span>{timeAgo}</span>
                 </div>
 
-                {/* Right: Actions */}
                 <div className="flex items-center gap-2">
                     <UpvoteButton
                         count={confession.upvote_count}
-                        hasVoted={confession.user_has_voted ? true : false}
+                        hasVoted={!!confession.user_has_voted}
                         onVote={() => onVote(confession.id)}
                     />
 
                     {isAuthenticated && (
-                        <motion.button
+                        <button
                             onClick={() => onReport(confession.id)}
-                            className="p-2 rounded-full text-text-secondary hover:text-rose-dark hover:bg-rose-light/20 transition-colors"
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
+                            className="p-2 rounded-xl text-text-secondary hover:text-rose-600 hover:bg-white/50 transition-all"
                             title="Report"
                         >
                             <Flag className="w-4 h-4" />
-                        </motion.button>
+                        </button>
                     )}
                 </div>
             </div>
 
-            {/* Decorative gradient */}
-            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-rose-light/10 to-transparent pointer-events-none" />
+            {/* Subtle Gradient Glow */}
+            <div className="absolute -top-12 -right-12 w-24 h-24 bg-white/20 blur-3xl pointer-events-none rounded-full" />
         </motion.article>
     )
 }
