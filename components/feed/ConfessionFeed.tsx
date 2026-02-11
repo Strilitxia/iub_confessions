@@ -29,8 +29,10 @@ export default function ConfessionFeed() {
     const router = useRouter()
     const { user } = useAuth()
     const { toast } = useToast()
-    const supabase = createClient()
     
+    // 1. Force Supabase to use 'no-store' on every internal fetch call
+    const supabase = createClient()
+
     const countRef = useRef(0)
     const isFetchingRef = useRef(false)
     const observerTarget = useRef<HTMLDivElement>(null)
@@ -50,21 +52,25 @@ export default function ConfessionFeed() {
         try {
             const offset = reset ? 0 : countRef.current
             
-            // CACHE BUSTER: We add a dummy filter with a timestamp to force 
-            // the browser to ignore its cache and hit the Supabase API fresh.
+            // 2. DISABLE CACHE: 
+            // We append a 'no-cache' header AND use a filter that acts as a URL buster.
             const { data, error } = await supabase
                 .from('confessions')
                 .select('*')
                 .eq('status', 'approved')
+                // Force a unique URL by adding a timestamp to the query parameters
+                // PostgREST ignores parameters it doesn't recognize as columns
+                .filter('created_at', 'neq', `1970-01-01T00:00:00Z&cb=${Date.now()}`) 
                 .range(offset, offset + PAGE_SIZE - 1)
                 .order('created_at', { ascending: false })
-                // This forces a fresh fetch if the browser is being aggressive
-                .setHeader('Cache-Control', 'no-cache') 
+                .setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+                .setHeader('Pragma', 'no-cache')
+                .setHeader('Expires', '0')
 
             if (error) throw error
             let processedData = data as ConfessionWithProfile[]
 
-            // Robust session verification
+            // Robust session check
             const { data: { session } } = await supabase.auth.getSession()
             const activeUser = user || session?.user
 
@@ -101,26 +107,24 @@ export default function ConfessionFeed() {
         }
     }, [supabase, user?.id, mode, toast])
 
-    // 1. Listen for Auth Changes to PURGE cache and state immediately
+    // 3. Clear state on login/logout to prevent cached UI shells
     useEffect(() => {
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
             if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
-                setConfessions([]) // Wipe old data
-                fetchConfessions(true) // Force fresh fetch
+                setConfessions([])
+                setIsLoading(true)
+                fetchConfessions(true)
             }
         })
         return () => subscription.unsubscribe()
     }, [supabase, fetchConfessions])
 
-    // Initial Load
     useEffect(() => {
         if (mounted) fetchConfessions(true)
     }, [mounted, mode, fetchConfessions])
 
-    // Intersection Observer (The Sentinel)
     useEffect(() => {
         if (!mounted || !hasMore || isLoading) return
-
         const observer = new IntersectionObserver(
             (entries) => {
                 if (entries[0].isIntersecting && !isFetchingRef.current) {
@@ -129,7 +133,6 @@ export default function ConfessionFeed() {
             },
             { threshold: 0.1, rootMargin: '600px' } 
         )
-
         if (observerTarget.current) observer.observe(observerTarget.current)
         return () => observer.disconnect()
     }, [mounted, hasMore, isLoading, fetchConfessions])
@@ -228,7 +231,6 @@ export default function ConfessionFeed() {
                 </div>
             )}
 
-            {/* The Sentinel */}
             <div ref={observerTarget} className="h-40 w-full flex justify-center items-center">
                 {isLoadingMore && <Loader2 className="animate-spin text-rose-primary w-10 h-10" />}
             </div>
