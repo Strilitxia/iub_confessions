@@ -1,36 +1,49 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# IUB Confessions
 
-## Getting Started
+An anonymous confession web application built for the IUB community. This platform allows users to share their thoughts freely and anonymously in a clean, modern, and responsive interface.
 
-First, run the development server:
+🔗 **Repository:** https://github.com/Strilitxia/iub_confessions  
+🔗 **Live Demo:** https://iub-confessions.vercel.app  
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+---
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 📌 About the Project
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+IUB Confessions is a campus-based anonymous confession platform designed to provide students with a space to express themselves without revealing their identity. The project focuses on simplicity, privacy, and performance using modern web technologies.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## 🚀 Features
 
-To learn more about Next.js, take a look at the following resources:
+- ✏️ Post anonymous confessions
+- 📱 Fully responsive design
+- ⚡ Fast performance with Next.js
+- 🎨 Clean and minimal UI
+- 🚀 Easy deployment with Vercel
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 🛠 Tech Stack
 
-## Deploy on Vercel
+- **Next.js** – React framework for production
+- **React** – Component-based UI
+- **TypeScript** – Type safety
+- **CSS / Tailwind CSS** – Styling
+- **Vercel** – Hosting & deployment
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 📂 Project Structure
+iub_confessions/
+│
+├── app/ # Application routes and pages
+├── components/ # Reusable UI components
+├── public/ # Static assets
+├── lib/ # Utility functions
+├── types/ # TypeScript types
+├── package.json
+└── README.md
+
+
+📄 License
+This project is open-source and available for educational and personal use
